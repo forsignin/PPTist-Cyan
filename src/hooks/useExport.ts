@@ -69,14 +69,25 @@ export default () => {
   
   // 导出JSON文件
   const exportJSON = () => {
+    const processedSlides = slides.value.map(slide => {
+      const elements = slide.elements.map(element => {
+        const { id, name, groupId, type, ...props } = element
+        return { type, ...props }
+      })
+      const { id, ...slideProps } = slide
+      return { ...slideProps, elements }
+    })
+
     const json = {
       title: title.value,
       width: viewportSize.value,
       height: viewportSize.value * viewportRatio.value,
-      slides: slides.value,
+      slides: processedSlides
     }
-    const blob = new Blob([JSON.stringify(json)], { type: '' })
+
+    const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' })
     saveAs(blob, `${title.value}.json`)
+    return json
   }
 
   // 格式化颜色值为 透明度 + HexString，供pptxgenjs使用

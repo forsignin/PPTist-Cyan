@@ -21,17 +21,50 @@ import type {
   ShapeTextAlign,
   PPTTextElement,
   ChartOptions,
+  SlideTheme,
 } from '@/types/slides'
 
+interface ImportedJSON {
+  title?: string
+  theme?: SlideTheme
+  slides: Slide[]
+  width?: number
+  height?: number
+}
+
+interface ViewportCalculationResult {
+  processedSlidesWithScale: Slide[]
+  viewportRatio: number
+}
+
+const calculateViewportAndScale = (slides: Slide[], originalWidth?: number, originalHeight?: number): ViewportCalculationResult => {
+  // 如果提供了原始尺寸，直接使用原始尺寸和比例
+  if (originalWidth && originalHeight) {
+    return {
+      processedSlidesWithScale: slides,  // 直接使用原始slides，不进行缩放
+      viewportRatio: originalHeight / originalWidth
+    }
+  }
+
+  // 如果没有原始尺寸，使用默认值
+  const defaultViewportSize = 1000
+  const defaultRatio = 0.5625 // 16:9
+
+  return {
+    processedSlidesWithScale: slides,
+    viewportRatio: defaultRatio
+  }
+}
+
 const convertFontSizePtToPx = (html: string, ratio: number) => {
-  return html.replace(/font-size:\s*([\d.]+)pt/g, (match, p1) => {
+  return html.replace(/font-size:\\s*([\d.]+)pt/g, (match, p1) => {
     return `font-size: ${(parseFloat(p1) * ratio).toFixed(1)}px`
   })
 }
 
 export default () => {
   const slidesStore = useSlidesStore()
-  const { theme } = storeToRefs(useSlidesStore())
+  const { theme, slides, viewportRatio, title, viewportSize } = storeToRefs(slidesStore)
 
   const { addHistorySnapshot } = useHistorySnapshot()
   const { addSlidesFromData } = useAddSlidesOrElements()
@@ -550,9 +583,66 @@ export default () => {
     reader.readAsArrayBuffer(file)
   }
 
+  // 导入JSON文件
+  const importJSON = (files: FileList) => {
+    const file = files[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = e => {
+      try {
+        const json = JSON.parse(e.target?.result as string) as ImportedJSON
+        if (!json || !json.slides || !Array.isArray(json.slides)) {
+          throw new Error('无效的 JSON 格式')
+        }
+
+        // 设置主题（如果存在）
+        if (json.theme) {
+          slidesStore.setTheme(json.theme)
+        }
+
+        // 设置标题（如果存在）
+        if (json.title) {
+          slidesStore.setTitle(json.title)
+        }
+
+        // 设置视口大小（如果存在）
+        if (json.width) {
+          slidesStore.setViewportSize(json.width)
+        }
+
+        // 处理每个幻灯片并计算合适的视口比例
+        const { processedSlidesWithScale, viewportRatio } = calculateViewportAndScale(
+          json.slides,
+          json.width,
+          json.height
+        )
+
+        // 设置视口比例
+        slidesStore.setViewportRatio(viewportRatio)
+
+        // 设置幻灯片
+        if (isEmptySlide.value) {
+          slidesStore.setSlides(processedSlidesWithScale)
+          addHistorySnapshot()
+        }
+        else addSlidesFromData(processedSlidesWithScale)
+
+        message.success('导入成功')
+      }
+      catch (err: unknown) {
+        console.error('Import error:', err)
+        const errorMessage = err instanceof Error ? err.message : '未知错误'
+        message.error('导入失败：' + errorMessage)
+      }
+    }
+    reader.readAsText(file)
+  }
+
   return {
     importSpecificFile,
     importPPTXFile,
+    importJSON,
     exporting,
   }
 }

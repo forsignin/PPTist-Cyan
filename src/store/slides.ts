@@ -75,8 +75,8 @@ export const useSlidesStore = defineStore('slides', {
     },
 
     // 格式化的当前页动画
-    // 将触发条件为“与上一动画同时”的项目向上合并到序列中的同一位置
-    // 为触发条件为“上一动画之后”项目的上一项添加自动向下执行标记
+    // 将触发条件为"与上一动画同时"的项目向上合并到序列中的同一位置
+    // 为触发条件为"上一动画之后"项目的上一项添加自动向下执行标记
     formatedAnimations(state) {
       const currentSlide = state.slides[state.slideIndex]
       if (!currentSlide?.animations) return []
